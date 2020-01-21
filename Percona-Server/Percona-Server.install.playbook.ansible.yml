@@ -1,0 +1,65 @@
+---
+- hosts: all
+  user: vagrant
+  gather_facts: true
+  tasks:
+
+    - name: yum list percona-release
+      yum:
+        list: percona-release
+      ignore_errors: true
+      register: yum_list_value
+      until: "not yum_list_value.failed"
+      retries: 10
+
+    - name: yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm  # yamllint disable-line
+      become: yes  # yamllint disable-line
+      become_user: root
+      when: "yum_list_value.results | length == 0"
+      yum:
+        name: https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+        state: present
+      ignore_errors: true
+      register: yum_install_value
+      until: "not yum_install_value.failed"
+      retries: 10
+
+    - name: yum list percona-server-server
+      yum:
+        list: percona-server-server
+      ignore_errors: true
+      register: yum_list_value
+      until: "not yum_list_value.failed"
+      retries: 10
+
+    - name: percona-release setup ps80
+      become: yes  # yamllint disable-line
+      become_user: root
+      command: percona-release setup ps80
+      when: "yum_list_value.results | length == 0"
+
+    - name: yum list percona-server-server
+      yum:
+        list: percona-server-server
+      ignore_errors: true
+      register: yum_list_value
+      until: "not yum_list_value.failed"
+      retries: 10
+
+    - name: yum install -y percona-server-server
+      become: yes  # yamllint disable-line
+      become_user: root
+      when: "yum_list_value.results | selectattr('yumstate', 'equalto', 'installed') | list | length == 0"  # yamllint disable-line
+      yum:
+        name: percona-server-server
+        state: installed
+      register: yum_value
+      until: "yum_value.rc == 0"
+      retries: 20
+
+    - name: mysql -V
+      command: mysql -V
+      register: command_value
+      changed_when: false
+
+    - debug: var=command_value.stdout
