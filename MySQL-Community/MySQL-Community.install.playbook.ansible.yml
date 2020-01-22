@@ -64,6 +64,8 @@
       yum:
         name: mysql-community-server
         state: installed
+      register: yum_install_result
+      until: "not yum_install_result.failed"
 
     - name: mysql -V
       command: mysql -V
